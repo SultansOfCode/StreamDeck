@@ -29,6 +29,9 @@ s = serial.Serial("COM5")
 def setAway(enabled, message=None):
   global client, away_previous_scene, away
 
+  if enabled == away:
+    return
+
   away = enabled
 
   client.call(requests.SetInputMute(inputName="Mic/Aux", inputMuted=away))
@@ -94,7 +97,7 @@ def handle_button(button, value):
     elif button == 22:
       setAway(True, "Cingaro")
     elif button == 24:
-      setAway(not away)
+      setAway(False)
 
 
 def handle_encoder(encoder, value):
