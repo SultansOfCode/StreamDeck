@@ -5,6 +5,7 @@
 
 from obswebsocket import obsws, requests
 import serial
+import time
 
 
 encoder_input_name = [
@@ -15,6 +16,7 @@ encoder_input_name = [
   None
 ]
 
+away_previous_scene = None
 away = False
 
 
@@ -24,31 +26,46 @@ client.connect()
 s = serial.Serial("COM5")
 
 
-def setAway(enabled):
-  global client, away
+def setAway(enabled, message=None):
+  global client, away_previous_scene, away
 
   away = enabled
 
   client.call(requests.SetInputMute(inputName="Mic/Aux", inputMuted=away))
 
-  scenes = client.call(requests.GetSceneList())
+  if message is not None:
+    client.call(requests.SetInputSettings(inputName="Away Message", inputSettings={ "text": message }))
 
-  if scenes.status:
-    for scene in scenes.getScenes():
-      scene_name = scene["sceneName"]
-      webcam_item = client.call(requests.GetSceneItemId(sceneName=scene_name, sourceName="Webcam"))
+    time.sleep(0.1)
 
-      if webcam_item.status:
-        webcam_id = webcam_item.datain["sceneItemId"]
+    message_item = client.call(requests.GetSceneItemId(sceneName="Away", sourceName="Away Message"))
 
-        client.call(requests.SetSceneItemEnabled(sceneName=scene_name, sceneItemId=webcam_id, sceneItemEnabled=not away))
+    if message_item.status:
+      message_id = message_item.datain["sceneItemId"]
 
-      away_item = client.call(requests.GetSceneItemId(sceneName=scene_name, sourceName="Away"))
+      message_transform = client.call(requests.GetSceneItemTransform(sceneName="Away", sceneItemId=message_id))
 
-      if away_item.status:
-        away_id = away_item.datain["sceneItemId"]
+      if message_transform.status:
+        old_transform = message_transform.datain["sceneItemTransform"]
+        new_transform = {
+          "positionX": 960 - old_transform["width"] * 0.5,
+          "positionY": 540 - old_transform["height"] * 0.5
+        }
 
-        client.call(requests.SetSceneItemEnabled(sceneName=scene_name, sceneItemId=away_id, sceneItemEnabled=away))
+        client.call(requests.SetSceneItemTransform(sceneName="Away", sceneItemId=message_id, sceneItemTransform=new_transform))
+
+  if away:
+    if away_previous_scene is None:
+      current_scene = client.call(requests.GetCurrentProgramScene())
+
+      if current_scene.status:
+        away_previous_scene = current_scene.datain["currentProgramSceneName"]
+
+    client.call(requests.SetCurrentProgramScene(sceneName="Away"))
+  elif away_previous_scene is not None:
+    client.call(requests.SetCurrentProgramScene(sceneName=away_previous_scene))
+
+    away_previous_scene = None
 
   print("Away set to:", away)
 
@@ -70,6 +87,12 @@ def handle_button(button, value):
       client.call(requests.SetCurrentProgramScene(sceneName="Left Screen"))
     elif button == 7:
       client.call(requests.SetCurrentProgramScene(sceneName="Coding"))
+    elif button == 20:
+      setAway(True, "Já volto")
+    elif button == 21:
+      setAway(True, "Mijar")
+    elif button == 22:
+      setAway(True, "Cingaro")
     elif button == 24:
       setAway(not away)
 
@@ -94,8 +117,6 @@ def handle_encoder(encoder, value):
 
 
 def main():
-  setAway(False)
-
   while True:
     commands = s.readline().decode().strip().split(",")
 
