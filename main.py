@@ -16,7 +16,6 @@ encoder_input_name = [
   None
 ]
 
-away_previous_scene = None
 away = False
 
 
@@ -26,51 +25,76 @@ client.connect()
 s = serial.Serial("COM5")
 
 
-def setAway(enabled, message=None):
-  global client, away_previous_scene, away
+def setScenesItemVisible(source_name, visible):
+  global client
 
-  if enabled == away:
+  scenes = client.call(requests.GetSceneList())
+
+  for scene in scenes.getScenes():
+    scene_name = scene["sceneName"]
+
+    item = client.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=source_name))
+
+    if item.status:
+      id = item.datain["sceneItemId"]
+
+      client.call(requests.SetSceneItemEnabled(sceneName=scene_name, sceneItemId=id, sceneItemEnabled=visible))
+
+
+def setMicrophoneMute(muted):
+  global client
+
+  client.call(requests.SetInputMute(inputName="Mic/Aux", inputMuted=muted))
+
+
+def setWebcamVisible(visible):
+  setScenesItemVisible("Webcam", visible)
+
+
+def setAwayMessage(message=None):
+  client.call(requests.SetInputSettings(inputName="Away Message", inputSettings={ "text": message if message is not None else "Já volto" }))
+
+  time.sleep(0.1)
+
+  message_item = client.call(requests.GetSceneItemId(sceneName="Away", sourceName="Away Message"))
+
+  if not message_item.status:
     return
+
+  message_id = message_item.datain["sceneItemId"]
+
+  message_transform = client.call(requests.GetSceneItemTransform(sceneName="Away", sceneItemId=message_id))
+
+  if not message_transform.status:
+    return
+
+  old_transform = message_transform.datain["sceneItemTransform"]
+  new_transform = {
+    "positionX": 960 - old_transform["width"] * 0.5,
+    "positionY": 540 - old_transform["height"] * 0.5
+  }
+
+  client.call(requests.SetSceneItemTransform(sceneName="Away", sceneItemId=message_id, sceneItemTransform=new_transform))
+
+
+def setAwayMessageVisible(visible):
+  setScenesItemVisible("Away", visible)
+
+
+def setAway(enabled, message=None):
+  global client, away
 
   away = enabled
 
-  client.call(requests.SetInputMute(inputName="Mic/Aux", inputMuted=away))
-
-  if message is not None:
-    client.call(requests.SetInputSettings(inputName="Away Message", inputSettings={ "text": message }))
-
-    time.sleep(0.1)
-
-    message_item = client.call(requests.GetSceneItemId(sceneName="Away", sourceName="Away Message"))
-
-    if message_item.status:
-      message_id = message_item.datain["sceneItemId"]
-
-      message_transform = client.call(requests.GetSceneItemTransform(sceneName="Away", sceneItemId=message_id))
-
-      if message_transform.status:
-        old_transform = message_transform.datain["sceneItemTransform"]
-        new_transform = {
-          "positionX": 960 - old_transform["width"] * 0.5,
-          "positionY": 540 - old_transform["height"] * 0.5
-        }
-
-        client.call(requests.SetSceneItemTransform(sceneName="Away", sceneItemId=message_id, sceneItemTransform=new_transform))
+  setMicrophoneMute(away)
+  setWebcamVisible(not away)
 
   if away:
-    if away_previous_scene is None:
-      current_scene = client.call(requests.GetCurrentProgramScene())
+    setAwayMessage(message)
 
-      if current_scene.status:
-        away_previous_scene = current_scene.datain["currentProgramSceneName"]
+  setAwayMessageVisible(away)
 
-    client.call(requests.SetCurrentProgramScene(sceneName="Away"))
-  elif away_previous_scene is not None:
-    client.call(requests.SetCurrentProgramScene(sceneName=away_previous_scene))
-
-    away_previous_scene = None
-
-  print("Away set to:", away)
+  print("Away set to:", away, "-", message)
 
 
 def handle_button(button, value):
