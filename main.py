@@ -8,10 +8,18 @@ import serial
 import time
 
 
+AUDIO_DESKTOP_NAME = "Desktop"
+AUDIO_BGM_NAME = "BGM"
+AUDIO_MICROPHONE_NAME = "Microphone"
+VIDEO_WEBCAM_NAME = "Webcam"
+SCENE_AWAY_NAME = "Away"
+ITEM_AWAY_MESSAGE_NAME = "Away Message"
+
+
 encoder_input_name = [
-  "Áudio do desktop",
-  "Mic/Aux",
-  "Minecraft Audio",
+  AUDIO_DESKTOP_NAME,
+  AUDIO_BGM_NAME,
+  AUDIO_MICROPHONE_NAME,
   None,
   None
 ]
@@ -41,29 +49,45 @@ def setScenesItemVisible(source_name, visible):
       client.call(requests.SetSceneItemEnabled(sceneName=scene_name, sceneItemId=id, sceneItemEnabled=visible))
 
 
-def setMicrophoneMute(muted):
+def setAudioSourceMute(source, muted):
   global client
 
-  client.call(requests.SetInputMute(inputName="Mic/Aux", inputMuted=muted))
+  client.call(requests.SetInputMute(inputName=source, inputMuted=muted))
 
 
-def setWebcamVisible(visible):
-  setScenesItemVisible("Webcam", visible)
+def setDesktopMute(muted):
+  global AUDIO_DESKTOP_NAME
+
+  setAudioSourceMute(AUDIO_DESKTOP_NAME, muted)
+
+
+def setMicrophoneMute(muted):
+  global AUDIO_MICROPHONE_NAME
+
+  setAudioSourceMute(AUDIO_MICROPHONE_NAME, muted)
+
+
+def setWebcamHide(hidden):
+  global VIDEO_WEBCAM_NAME
+
+  setScenesItemVisible(VIDEO_WEBCAM_NAME, not hidden)
 
 
 def setAwayMessage(message=None):
-  client.call(requests.SetInputSettings(inputName="Away Message", inputSettings={ "text": message if message is not None else "Já volto" }))
+  global client, SCENE_AWAY_NAME, ITEM_AWAY_MESSAGE_NAME
+
+  client.call(requests.SetInputSettings(inputName=ITEM_AWAY_MESSAGE_NAME, inputSettings={ "text": message if message is not None else "Já volto" }))
 
   time.sleep(0.1)
 
-  message_item = client.call(requests.GetSceneItemId(sceneName="Away", sourceName="Away Message"))
+  message_item = client.call(requests.GetSceneItemId(sceneName=SCENE_AWAY_NAME, sourceName=ITEM_AWAY_MESSAGE_NAME))
 
   if not message_item.status:
     return
 
   message_id = message_item.datain["sceneItemId"]
 
-  message_transform = client.call(requests.GetSceneItemTransform(sceneName="Away", sceneItemId=message_id))
+  message_transform = client.call(requests.GetSceneItemTransform(sceneName=SCENE_AWAY_NAME, sceneItemId=message_id))
 
   if not message_transform.status:
     return
@@ -74,25 +98,35 @@ def setAwayMessage(message=None):
     "positionY": 540 - old_transform["height"] * 0.5
   }
 
-  client.call(requests.SetSceneItemTransform(sceneName="Away", sceneItemId=message_id, sceneItemTransform=new_transform))
+  client.call(requests.SetSceneItemTransform(sceneName=SCENE_AWAY_NAME, sceneItemId=message_id, sceneItemTransform=new_transform))
 
 
 def setAwayMessageVisible(visible):
-  setScenesItemVisible("Away", visible)
+  global SCENE_AWAY_NAME
+
+  setScenesItemVisible(SCENE_AWAY_NAME, visible)
 
 
 def setAway(enabled, message=None):
-  global client, away
+  global client, away, AUDIO_BGM_NAME
 
   away = enabled
 
+  setDesktopMute(away)
   setMicrophoneMute(away)
-  setWebcamVisible(not away)
+  setWebcamHide(away)
 
   if away:
     setAwayMessage(message)
 
   setAwayMessageVisible(away)
+
+  info = client.call(requests.GetInputVolume(inputName=AUDIO_BGM_NAME))
+
+  if info.status:
+    volume = info.datain["inputVolumeDb"] + 10 * (1 if away else -1)
+
+    client.call(requests.SetInputVolume(inputName=AUDIO_BGM_NAME, inputVolumeDb=volume))
 
   print("Away set to:", away, "-", message)
 
@@ -138,8 +172,10 @@ def handle_encoder(encoder, value):
     return
 
   info = client.call(requests.GetInputVolume(inputName=input_name))
+
   if info.status:
     volume = info.datain["inputVolumeDb"] + value
+
     client.call(requests.SetInputVolume(inputName=input_name, inputVolumeDb=volume))
 
 
