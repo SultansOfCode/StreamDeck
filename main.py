@@ -4,8 +4,10 @@
 # https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.md#requests
 
 from obswebsocket import obsws, requests
+import easygui
 import serial
 import time
+import winsound
 
 
 AUDIO_DESKTOP_NAME = "Desktop"
@@ -14,6 +16,8 @@ AUDIO_MICROPHONE_NAME = "Microphone"
 VIDEO_WEBCAM_NAME = "Webcam"
 SCENE_AWAY_NAME = "Away"
 ITEM_AWAY_MESSAGE_NAME = "Away Message"
+SOUND_AWAY_START = "C:\\Users\\SultansOfCode\\Desktop\\perae.wav"
+SOUND_AWAY_END = "C:\\Users\\SultansOfCode\\Desktop\\voltei.wav"
 
 
 encoder_input_name = [
@@ -31,6 +35,10 @@ client = obsws("localhost", 4455)
 client.connect()
 
 s = serial.Serial("COM5")
+
+
+def playSound(filename):
+  winsound.PlaySound(filename, winsound.SND_FILENAME)
 
 
 def setScenesItemVisible(source_name, visible):
@@ -108,7 +116,7 @@ def setAwayMessageVisible(visible):
 
 
 def setAway(enabled, message=None):
-  global client, away, AUDIO_BGM_NAME
+  global client, away, AUDIO_BGM_NAME, SOUND_AWAY_START, SOUND_AWAY_END
 
   away = enabled
 
@@ -128,11 +136,16 @@ def setAway(enabled, message=None):
 
     client.call(requests.SetInputVolume(inputName=AUDIO_BGM_NAME, inputVolumeDb=volume))
 
+  if away:
+    playSound(SOUND_AWAY_START)
+  else:
+    playSound(SOUND_AWAY_END)
+
   print("Away set to:", away, "-", message)
 
 
 def handle_button(button, value):
-  global client, encoder_input_name, away
+  global client, encoder_input_name, away, AUDIO_BGM_NAME
 
   print("Button", button, "with value", value)
 
@@ -143,17 +156,30 @@ def handle_button(button, value):
       if input_name is not None:
         client.call(requests.ToggleInputMute(inputName=input_name))
     elif button == 5:
+      setAudioSourceMute(AUDIO_BGM_NAME, True)
+
       client.call(requests.SetCurrentProgramScene(sceneName="Minecraft"))
     elif button == 6:
+      setAudioSourceMute(AUDIO_BGM_NAME, False)
+
       client.call(requests.SetCurrentProgramScene(sceneName="Left Screen"))
     elif button == 7:
+      setAudioSourceMute(AUDIO_BGM_NAME, False)
+
       client.call(requests.SetCurrentProgramScene(sceneName="Coding"))
+    elif button == 10:
+      playSound("C:\\Users\\SultansOfCode\\Desktop\\zedamanga.wav")
     elif button == 20:
       setAway(True, "Já volto")
     elif button == 21:
       setAway(True, "Mijar")
     elif button == 22:
       setAway(True, "Cingaro")
+    elif button == 23:
+      reason = easygui.enterbox("Motivo do away:")
+
+      if reason is not None:
+        setAway(True, reason)
     elif button == 24:
       setAway(False)
 

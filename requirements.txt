@@ -1,0 +1,4 @@
+obs-websocket-py
+pyserial
+easygui
+win11toast
