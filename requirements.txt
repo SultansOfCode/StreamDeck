@@ -1,4 +1,4 @@
-obs-websocket-py
-pyserial
-easygui
-win11toast
+easygui==0.98.3
+machine==0.0.1
+obs_websocket_py==1.0
+pyserial==3.5

@@ -1,11 +1,14 @@
 # pyserial
 # obs-websocket-py
+# easygui
 # https://github.com/Elektordi/obs-websocket-py
 # https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.md#requests
 
 from obswebsocket import obsws, requests
 import easygui
 import serial
+import signal
+import sys
 import time
 import winsound
 
@@ -16,8 +19,8 @@ AUDIO_MICROPHONE_NAME = "Microphone"
 VIDEO_WEBCAM_NAME = "Webcam"
 SCENE_AWAY_NAME = "Away"
 ITEM_AWAY_MESSAGE_NAME = "Away Message"
-SOUND_AWAY_START = "C:\\Users\\SultansOfCode\\Desktop\\perae.wav"
-SOUND_AWAY_END = "C:\\Users\\SultansOfCode\\Desktop\\voltei.wav"
+SOUND_AWAY_START = "audio\\brazino.wav"
+SOUND_AWAY_END = "audio\\pornhub.wav"
 
 
 encoder_input_name = [
@@ -34,7 +37,7 @@ away = False
 client = obsws("localhost", 4455)
 client.connect()
 
-s = serial.Serial("COM5")
+s = serial.Serial("COM5", timeout=0.1)
 
 
 def playSound(filename):
@@ -129,12 +132,7 @@ def setAway(enabled, message=None):
 
   setAwayMessageVisible(away)
 
-  info = client.call(requests.GetInputVolume(inputName=AUDIO_BGM_NAME))
-
-  if info.status:
-    volume = info.datain["inputVolumeDb"] + 10 * (1 if away else -1)
-
-    client.call(requests.SetInputVolume(inputName=AUDIO_BGM_NAME, inputVolumeDb=volume))
+  client.call(requests.SetInputVolume(inputName=AUDIO_BGM_NAME, inputVolumeDb=(-7 if away else -17)))
 
   if away:
     playSound(SOUND_AWAY_START)
@@ -168,7 +166,13 @@ def handle_button(button, value):
 
       client.call(requests.SetCurrentProgramScene(sceneName="Coding"))
     elif button == 10:
-      playSound("C:\\Users\\SultansOfCode\\Desktop\\zedamanga.wav")
+      playSound("audio\\zedamanga.wav")
+    elif button == 11:
+      playSound("audio\\tiraqueeuvoucagar.wav")
+    elif button == 12:
+      playSound("audio\\brazino.wav")
+    elif button == 13:
+      playSound("audio\\pornhub.wav")
     elif button == 20:
       setAway(True, "Já volto")
     elif button == 21:
@@ -205,7 +209,17 @@ def handle_encoder(encoder, value):
     client.call(requests.SetInputVolume(inputName=input_name, inputVolumeDb=volume))
 
 
+def signal_handler(sig, frame):
+  print("CTRL + C")
+
+  sys.exit(0)
+
+
 def main():
+  signal.signal(signal.SIGINT, signal_handler)
+
+  print("Conectado!")
+
   while True:
     commands = s.readline().decode().strip().split(",")
 
