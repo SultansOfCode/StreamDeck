@@ -16,7 +16,7 @@ import winsound
 AUDIO_DESKTOP_NAME = "Desktop"
 AUDIO_BGM_NAME = "BGM"
 AUDIO_MICROPHONE_NAME = "Microphone"
-VIDEO_WEBCAM_NAME = "Webcam"
+VIDEO_WEBCAM_NAME = "Webcam Scene"
 SCENE_AWAY_NAME = "Away"
 ITEM_AWAY_MESSAGE_NAME = "Away Message"
 SOUND_AWAY_START = "audio\\brazino.wav"
@@ -33,11 +33,8 @@ encoder_input_name = [
 
 away = False
 
-
-client = obsws("localhost", 4455)
-client.connect()
-
-s = serial.Serial("COM5", timeout=0.1)
+client = None
+s = None
 
 
 def playSound(filename):
@@ -45,8 +42,6 @@ def playSound(filename):
 
 
 def setScenesItemVisible(source_name, visible):
-  global client
-
   scenes = client.call(requests.GetSceneList())
 
   for scene in scenes.getScenes():
@@ -54,39 +49,110 @@ def setScenesItemVisible(source_name, visible):
 
     item = client.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=source_name))
 
-    if item.status:
-      id = item.datain["sceneItemId"]
+    if not item.status:
+      continue
 
-      client.call(requests.SetSceneItemEnabled(sceneName=scene_name, sceneItemId=id, sceneItemEnabled=visible))
+    id = item.datain["sceneItemId"]
+
+    client.call(requests.SetSceneItemEnabled(sceneName=scene_name, sceneItemId=id, sceneItemEnabled=visible))
 
 
 def setAudioSourceMute(source, muted):
-  global client
-
   client.call(requests.SetInputMute(inputName=source, inputMuted=muted))
 
 
 def setDesktopMute(muted):
-  global AUDIO_DESKTOP_NAME
-
   setAudioSourceMute(AUDIO_DESKTOP_NAME, muted)
 
 
 def setMicrophoneMute(muted):
-  global AUDIO_MICROPHONE_NAME
-
   setAudioSourceMute(AUDIO_MICROPHONE_NAME, muted)
 
 
 def setWebcamHide(hidden):
-  global VIDEO_WEBCAM_NAME
-
   setScenesItemVisible(VIDEO_WEBCAM_NAME, not hidden)
 
 
-def setAwayMessage(message=None):
-  global client, SCENE_AWAY_NAME, ITEM_AWAY_MESSAGE_NAME
+def toggleWebcamVisibility():
+  scenes = client.call(requests.GetSceneList())
+  visible = None
 
+  for scene in scenes.getScenes():
+    scene_name = scene["sceneName"]
+
+    item = client.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=VIDEO_WEBCAM_NAME))
+
+    if not item.status:
+      continue
+
+    id = item.datain["sceneItemId"]
+
+    if visible is None:
+      visibility = client.call(requests.GetSceneItemEnabled(sceneName=scene_name, sceneItemId=id))
+
+      if not visibility.status:
+        continue
+
+      visible = visibility.datain["sceneItemEnabled"]
+
+    client.call(requests.SetSceneItemEnabled(sceneName=scene_name, sceneItemId=id, sceneItemEnabled=not visible))
+
+
+def changeWebcamPosition():
+  scenes = client.call(requests.GetSceneList())
+  old_transform = None
+  new_transform = None
+
+  for scene in scenes.getScenes():
+    scene_name = scene["sceneName"]
+
+    item = client.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=VIDEO_WEBCAM_NAME))
+
+    if not item.status:
+      continue
+
+    id = item.datain["sceneItemId"]
+
+    if old_transform is None:
+      transform = client.call(requests.GetSceneItemTransform(sceneName=scene_name, sceneItemId=id))
+
+      if not transform.status:
+        continue
+
+      old_transform = transform.datain["sceneItemTransform"]
+
+      x = old_transform["positionX"]
+      y = old_transform["positionY"]
+      width = old_transform["width"] - old_transform["cropRight"]
+      height = old_transform["height"] - old_transform["cropBottom"]
+
+      if y < 540:
+        if x < 960:
+          new_transform = {
+            "positionX": 1920 - width - 10,
+            "positionY": 10
+          }
+        else:
+          new_transform = {
+            "positionX": 10,
+            "positionY": 1080 - height - 10
+          }
+      else:
+        if x < 960:
+          new_transform = {
+            "positionX": 1920 - width - 10,
+            "positionY": 1080 - height - 10
+          }
+        else:
+          new_transform = {
+            "positionX": 10,
+            "positionY": 10
+          }
+
+    client.call(requests.SetSceneItemTransform(sceneName=scene_name, sceneItemId=id, sceneItemTransform=new_transform))
+
+
+def setAwayMessage(message=None):
   client.call(requests.SetInputSettings(inputName=ITEM_AWAY_MESSAGE_NAME, inputSettings={ "text": message if message is not None else "Já volto" }))
 
   time.sleep(0.1)
@@ -113,14 +179,10 @@ def setAwayMessage(message=None):
 
 
 def setAwayMessageVisible(visible):
-  global SCENE_AWAY_NAME
-
   setScenesItemVisible(SCENE_AWAY_NAME, visible)
 
 
 def setAway(enabled, message=None):
-  global client, away, AUDIO_BGM_NAME, SOUND_AWAY_START, SOUND_AWAY_END
-
   away = enabled
 
   setDesktopMute(away)
@@ -143,8 +205,6 @@ def setAway(enabled, message=None):
 
 
 def handle_button(button, value):
-  global client, encoder_input_name, away, AUDIO_BGM_NAME
-
   print("Button", button, "with value", value)
 
   if value == 1:
@@ -165,6 +225,10 @@ def handle_button(button, value):
       setAudioSourceMute(AUDIO_BGM_NAME, False)
 
       client.call(requests.SetCurrentProgramScene(sceneName="Coding"))
+    elif button == 8:
+      toggleWebcamVisibility()
+    elif button == 9:
+      changeWebcamPosition()
     elif button == 10:
       playSound("audio\\zedamanga.wav")
     elif button == 11:
@@ -189,8 +253,6 @@ def handle_button(button, value):
 
 
 def handle_encoder(encoder, value):
-  global client, encoder_input_name
-
   print("Encoder", encoder, "with value", value)
 
   if value == 0:
@@ -236,4 +298,13 @@ def main():
 
 
 if __name__ == "__main__":
-  main()
+  while True:
+    try:
+      client = obsws("localhost", 4455)
+      client.connect()
+
+      s = serial.Serial("COM5", timeout=0.1)
+
+      main()
+    except:
+      pass
