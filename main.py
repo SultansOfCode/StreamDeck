@@ -294,6 +294,8 @@ def handle_encoder(encoder, value):
 
 
 def signal_handler(sig, frame):
+  global ctrl_c
+
   print("CTRL + C")
 
   ctrl_c = True
