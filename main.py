@@ -13,6 +13,14 @@ import time
 import winsound
 
 
+WIDTH = 1920
+HEIGHT = 1080
+
+HALF_WIDTH = WIDTH * 0.5
+HALF_HEIGHT = HEIGHT * 0.5
+
+SPACING = 10
+
 AUDIO_DESKTOP_NAME = "Desktop"
 AUDIO_BGM_NAME = "BGM"
 AUDIO_MICROPHONE_NAME = "Microphone"
@@ -22,14 +30,24 @@ ITEM_AWAY_MESSAGE_NAME = "Away Message"
 SOUND_AWAY_START = "audio\\brazino.wav"
 SOUND_AWAY_END = "audio\\pornhub.wav"
 
+SCENE_NAMES = [
+  "Minecraft",
+  "Coding",
+  "Only Webcam"
+]
 
-encoder_input_name = [
+ENCODER_INPUT_NAME = [
   AUDIO_DESKTOP_NAME,
   AUDIO_BGM_NAME,
   AUDIO_MICROPHONE_NAME,
   None,
   None
 ]
+
+BGM_VOLUME = -17
+BGM_VOLUME_AWAY = -7
+
+ctrl_c = False
 
 away = False
 
@@ -126,30 +144,34 @@ def changeWebcamPosition():
       width = old_transform["width"] - old_transform["cropRight"]
       height = old_transform["height"] - old_transform["cropBottom"]
 
-      if y < 540:
-        if x < 960:
+      if y < HALF_HEIGHT:
+        if x < HALF_WIDTH:
           new_transform = {
-            "positionX": 1920 - width - 10,
-            "positionY": 10
+            "positionX": WIDTH - width - SPACING,
+            "positionY": SPACING
           }
         else:
           new_transform = {
-            "positionX": 10,
-            "positionY": 1080 - height - 10
+            "positionX": SPACING,
+            "positionY": HEIGHT - height - SPACING
           }
       else:
-        if x < 960:
+        if x < HALF_WIDTH:
           new_transform = {
-            "positionX": 1920 - width - 10,
-            "positionY": 1080 - height - 10
+            "positionX": WIDTH - width - SPACING,
+            "positionY": HEIGHT - height - SPACING
           }
         else:
           new_transform = {
-            "positionX": 10,
-            "positionY": 10
+            "positionX": SPACING,
+            "positionY": SPACING
           }
 
     client.call(requests.SetSceneItemTransform(sceneName=scene_name, sceneItemId=id, sceneItemTransform=new_transform))
+
+
+def setScene(scene_name):
+  client.call(requests.SetCurrentProgramScene(sceneName=scene_name))
 
 
 def setAwayMessage(message=None):
@@ -171,8 +193,8 @@ def setAwayMessage(message=None):
 
   old_transform = message_transform.datain["sceneItemTransform"]
   new_transform = {
-    "positionX": 960 - old_transform["width"] * 0.5,
-    "positionY": 540 - old_transform["height"] * 0.5
+    "positionX": HALF_WIDTH - old_transform["width"] * 0.5,
+    "positionY": HALF_HEIGHT - old_transform["height"] * 0.5
   }
 
   client.call(requests.SetSceneItemTransform(sceneName=SCENE_AWAY_NAME, sceneItemId=message_id, sceneItemTransform=new_transform))
@@ -194,7 +216,7 @@ def setAway(enabled, message=None):
 
   setAwayMessageVisible(away)
 
-  client.call(requests.SetInputVolume(inputName=AUDIO_BGM_NAME, inputVolumeDb=(-7 if away else -17)))
+  client.call(requests.SetInputVolume(inputName=AUDIO_BGM_NAME, inputVolumeDb=(BGM_VOLUME_AWAY if away else BGM_VOLUME)))
 
   if away:
     playSound(SOUND_AWAY_START)
@@ -209,22 +231,22 @@ def handle_button(button, value):
 
   if value == 1:
     if button < 5:
-      input_name = encoder_input_name[button]
+      input_name = ENCODER_INPUT_NAME[button]
 
       if input_name is not None:
         client.call(requests.ToggleInputMute(inputName=input_name))
     elif button == 5:
       setAudioSourceMute(AUDIO_BGM_NAME, True)
 
-      client.call(requests.SetCurrentProgramScene(sceneName="Minecraft"))
+      setScene(SCENE_NAMES[0])
     elif button == 6:
       setAudioSourceMute(AUDIO_BGM_NAME, False)
 
-      client.call(requests.SetCurrentProgramScene(sceneName="Left Screen"))
+      setScene(SCENE_NAMES[1])
     elif button == 7:
       setAudioSourceMute(AUDIO_BGM_NAME, False)
 
-      client.call(requests.SetCurrentProgramScene(sceneName="Coding"))
+      setScene(SCENE_NAMES[2])
     elif button == 8:
       toggleWebcamVisibility()
     elif button == 9:
@@ -258,7 +280,7 @@ def handle_encoder(encoder, value):
   if value == 0:
     return
 
-  input_name = encoder_input_name[encoder]
+  input_name = ENCODER_INPUT_NAME[encoder]
 
   if input_name is None:
     return
@@ -274,7 +296,7 @@ def handle_encoder(encoder, value):
 def signal_handler(sig, frame):
   print("CTRL + C")
 
-  sys.exit(0)
+  ctrl_c = True
 
 
 def main():
@@ -296,6 +318,8 @@ def main():
       elif arguments[0] == "E" and len(arguments) == 3:
         handle_encoder(*map(int, arguments[1:]))
 
+    if ctrl_c:
+      break
 
 if __name__ == "__main__":
   while True:
@@ -308,3 +332,6 @@ if __name__ == "__main__":
       main()
     except:
       pass
+
+    if ctrl_c:
+      break
