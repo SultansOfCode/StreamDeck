@@ -29,6 +29,7 @@ SCENE_AWAY_NAME = "Away"
 ITEM_AWAY_MESSAGE_NAME = "Away Message"
 SOUND_AWAY_START = "audio\\brazino.wav"
 SOUND_AWAY_END = "audio\\pornhub.wav"
+LIVEPIX_QRCODE_ITEM_NAME = "LivePix QR Code"
 
 SCENE_NAMES = [
   "Minecraft",
@@ -118,56 +119,97 @@ def toggleWebcamVisibility():
 
 def changeWebcamPosition():
   scenes = client.call(requests.GetSceneList())
-  old_transform = None
-  new_transform = None
+  old_webcam_transform = None
+  new_webcam_transform = None
+  webcam_x = 0
+  webcam_y = 0
+  webcam_width = 320
+  webcam_height = 240
+  old_livepix_transform = None
+  new_livepix_transform = None
+  livepix_x = 0
+  livepix_y = 0
+  livepix_width = 240
+  livepix_height = 256
 
   for scene in scenes.getScenes():
     scene_name = scene["sceneName"]
 
-    item = client.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=VIDEO_WEBCAM_NAME))
+    webcam_item = client.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=VIDEO_WEBCAM_NAME))
 
-    if not item.status:
+    if not webcam_item.status:
       continue
 
-    id = item.datain["sceneItemId"]
+    webcam_id = webcam_item.datain["sceneItemId"]
 
-    if old_transform is None:
-      transform = client.call(requests.GetSceneItemTransform(sceneName=scene_name, sceneItemId=id))
+    if old_webcam_transform is None:
+      webcam_transform = client.call(requests.GetSceneItemTransform(sceneName=scene_name, sceneItemId=webcam_id))
 
-      if not transform.status:
+      if not webcam_transform.status:
         continue
 
-      old_transform = transform.datain["sceneItemTransform"]
+      old_webcam_transform = webcam_transform.datain["sceneItemTransform"]
 
-      x = old_transform["positionX"]
-      y = old_transform["positionY"]
-      width = old_transform["width"] - old_transform["cropRight"]
-      height = old_transform["height"] - old_transform["cropBottom"]
+      webcam_x = old_webcam_transform["positionX"]
+      webcam_y = old_webcam_transform["positionY"]
+      webcam_width = old_webcam_transform["width"] - old_webcam_transform["cropRight"]
+      webcam_height = old_webcam_transform["height"] - old_webcam_transform["cropBottom"]
 
-      if y < HALF_HEIGHT:
-        if x < HALF_WIDTH:
-          new_transform = {
-            "positionX": WIDTH - width - SPACING,
-            "positionY": SPACING
-          }
+      if webcam_y < HALF_HEIGHT:
+        if webcam_x < HALF_WIDTH:
+          webcam_x = WIDTH - SPACING - webcam_width
+          webcam_y = SPACING
         else:
-          new_transform = {
-            "positionX": SPACING,
-            "positionY": HEIGHT - height - SPACING
-          }
+          webcam_x = SPACING
+          webcam_y = HEIGHT - SPACING - webcam_height
       else:
-        if x < HALF_WIDTH:
-          new_transform = {
-            "positionX": WIDTH - width - SPACING,
-            "positionY": HEIGHT - height - SPACING
-          }
+        if webcam_x < HALF_WIDTH:
+          webcam_x = WIDTH - SPACING - webcam_width
+          webcam_y = HEIGHT - SPACING - webcam_height
         else:
-          new_transform = {
-            "positionX": SPACING,
-            "positionY": SPACING
-          }
+          webcam_x = SPACING
+          webcam_y = SPACING
 
-    client.call(requests.SetSceneItemTransform(sceneName=scene_name, sceneItemId=id, sceneItemTransform=new_transform))
+      new_webcam_transform = {
+        "positionX": webcam_x,
+        "positionY": webcam_y
+      }
+
+    if new_webcam_transform is not None:
+      client.call(requests.SetSceneItemTransform(sceneName=scene_name, sceneItemId=webcam_id, sceneItemTransform=new_webcam_transform))
+
+    livepix_item = client.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=LIVEPIX_QRCODE_ITEM_NAME))
+
+    if not livepix_item.status:
+      continue
+
+    livepix_id = livepix_item.datain["sceneItemId"]
+
+    if old_livepix_transform is None:
+      livepix_transform = client.call(requests.GetSceneItemTransform(sceneName=scene_name, sceneItemId=livepix_id))
+
+      if not livepix_transform.status:
+        continue
+
+      old_livepix_transform = livepix_transform.datain["sceneItemTransform"]
+
+      livepix_width = old_livepix_transform["width"]
+      livepix_height = old_livepix_transform["height"]
+
+      if webcam_y < HALF_HEIGHT or webcam_x < HALF_WIDTH:
+        livepix_x = WIDTH - SPACING - livepix_width
+        livepix_y = HEIGHT - SPACING - livepix_height
+      else:
+        livepix_x = WIDTH - SPACING - livepix_width
+        livepix_y = HEIGHT - SPACING - webcam_height - SPACING - livepix_height
+
+      new_livepix_transform = {
+        "positionX": livepix_x,
+        "positionY": livepix_y
+      }
+
+    if new_livepix_transform is not None:
+      client.call(requests.SetSceneItemTransform(sceneName=scene_name, sceneItemId=livepix_id, sceneItemTransform=new_livepix_transform))
 
 
 def setScene(scene_name):
@@ -333,6 +375,7 @@ if __name__ == "__main__":
 
       main()
     except:
+      print("MIJO")
       pass
 
     if ctrl_c:
